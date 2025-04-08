@@ -34,6 +34,8 @@ namespace Madscience.Perforce
         /// </summary>
         private readonly string _p4Fingerprint;
 
+        private static Dictionary<string, string> _tickets = new Dictionary<string, string>();
+
         #endregion
 
         #region CTORS
@@ -54,10 +56,8 @@ namespace Madscience.Perforce
         }
 
         #endregion
-    
 
-
-        private static Dictionary<string, string> _tickets = new Dictionary<string, string>();
+        #region METHODS
 
         /// <summary>
         /// Runs a shell command synchronously, returns concatenated stdout, stderr and error code.
@@ -231,6 +231,11 @@ namespace Madscience.Perforce
             throw new Exception($"Failed to get ticket - {string.Join("\n", result.StdErr)} {string.Join("\n", result.StdOut)}. If trust is already established, ignore this error. ");
         }
 
+
+        /// <summary>
+        /// Returns true if "p4" works at the local command line. Requires that you install and configure p4 properly.
+        /// </summary>
+        /// <returns></returns>
         public bool IsP4InstalledLocally()
         {
             Console.Write("WBTB : Verifying p4 client available locally, you can safely ignore any authentication errors immediately following this line.");
@@ -242,6 +247,7 @@ namespace Madscience.Perforce
             return true;
         }
 
+
         /// <summary>
         /// Gets detailed contents of a change using the P4 describe command. Returns null if revision does not exist.
         /// </summary>
@@ -250,7 +256,7 @@ namespace Madscience.Perforce
         /// <param name="host"></param>
         /// <param name="revision"></param>
         /// <returns></returns>
-        public string GetRawDescribe(int revision)
+        public string GetRawDescribe(string revision)
         {
             string ticket = GetTicket(_p4User, _p4Password, _p4Port, _p4Fingerprint);
             string command = $"p4 -u {_p4User} -p {_p4Port} -P {ticket} describe -s {revision}";
@@ -278,7 +284,12 @@ namespace Madscience.Perforce
         }
 
 
-
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="clientname"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         public string GetRawClient(string clientname)
         {
             string ticket = GetTicket(_p4User, _p4Password, _p4Port, _p4Fingerprint);
@@ -301,6 +312,12 @@ namespace Madscience.Perforce
             return string.Join("\n", result.StdOut);
         }
 
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="rawClient"></param>
+        /// <returns></returns>
         public Client ParseClient(string rawClient)
         {
             /*
@@ -363,6 +380,7 @@ namespace Madscience.Perforce
             };
         }
 
+
         /// <summary>
         /// 
         /// </summary>
@@ -373,6 +391,7 @@ namespace Madscience.Perforce
         {
             GetTicket(_p4User, _p4Password, _p4Port, _p4Fingerprint);
         }
+
 
         /// <summary>
         /// 
@@ -446,12 +465,17 @@ namespace Madscience.Perforce
             IEnumerable<string> description = descriptionRaw.Split("\n", StringSplitOptions.RemoveEmptyEntries);
             description = description.Select(line => line.Trim());
 
+            // parse out and strip optional *pending* string from date sequence. Could probably be done entirely 
+            // in regex but that would require effort.
+            string rawDate = Find(rawDescribe, @"change [\d]+ by.+? on (.*?)\n", RegexOptions.IgnoreCase);
+            rawDate = rawDate.Replace("*pending*", string.Empty);
+
             return new Change
             {
                 Revision = revision,
                 ChangeFilesCount = affectedFiles.Count(),
                 Workspace = Find(rawDescribe, @"change [\d]+ by.+@(.*?) on ", RegexOptions.IgnoreCase),
-                Date = DateTime.Parse(Find(rawDescribe, @"change [\d]+ by.+? on (.*?)\n", RegexOptions.IgnoreCase)),
+                Date = DateTime.Parse(rawDate),
                 User = Find(rawDescribe, @"change [\d]+ by (.*?)@", RegexOptions.IgnoreCase),
                 Files = files,
                 Description = string.Join(" ", description)
@@ -468,13 +492,13 @@ namespace Madscience.Perforce
         /// <param name="filePath"></param>
         /// <param name="revision"></param>
         /// <returns></returns>
-        public IEnumerable<string> GetRawAnnotate(string filePath, int? revision = null)
+        public IEnumerable<string> GetRawAnnotate(string filePath, string revision = null)
         {
             string ticket = GetTicket(_p4User, _p4Password, _p4Port, _p4Fingerprint);
 
             string revisionSwitch = string.Empty;
-            if (revision.HasValue)
-                revisionSwitch = $"@{revision.Value}";
+            if (!string.IsNullOrEmpty(revision))
+                revisionSwitch = $"@{revision}";
 
             string command = $"p4 -u {_p4User} -p {_p4Port} -P {ticket} annotate -c {filePath}{revisionSwitch}";
             ShellResult result = Run(command);
@@ -488,6 +512,24 @@ namespace Madscience.Perforce
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="raw"></param>
+        /// <returns></returns>
+        private AnnotateChange? TryParseAnnotateType(string raw)
+        {
+            try
+            {
+                return (AnnotateChange)Enum.Parse(typeof(AnnotateChange), raw);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+
+        /// <summary>
+        /// 
+        /// </summary>
         /// <param name="lines"></param>
         /// <returns></returns>
         public Annotate ParseAnnotate(IEnumerable<string> lines)
@@ -495,15 +537,15 @@ namespace Madscience.Perforce
             lines = lines.Where(line => !string.IsNullOrEmpty(line));
             string revision = string.Empty;
             string file = string.Empty;
-            AnnotateChange change = AnnotateChange.add;
+            AnnotateChange? change = null;
             IList<AnnotateLine> annotateLines = new List<AnnotateLine>();
 
-            // parse out first line, this contains descriptoin
+            // parse out first line, this contains description
             if (lines.Count() > 0)
             {
                 file = Find(lines.ElementAt(0), @"^(.*?) -");
                 revision = Find(lines.ElementAt(0), @" change (.*?) ");
-                change = (AnnotateChange)Enum.Parse(typeof(AnnotateChange), Find(lines.ElementAt(0), @" - (.*?) change "));
+                change = TryParseAnnotateType(Find(lines.ElementAt(0), @" - (.*?) change "));
             }
 
             if (lines.Count() > 1)
@@ -532,6 +574,7 @@ namespace Madscience.Perforce
             };
         }
 
+
         /// <summary>
         /// Gets raw p4 lookup of revisions from now back in time.
         /// </summary>
@@ -555,6 +598,13 @@ namespace Madscience.Perforce
             return result.StdOut;
         }
 
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="changeNumber"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         public IEnumerable<string> GetRawChange(string changeNumber)
         {
             string ticket = GetTicket(_p4User, _p4Password, _p4Port, _p4Fingerprint);
@@ -568,6 +618,7 @@ namespace Madscience.Perforce
             return result.StdOut;
         }
 
+
         /// <summary>
         /// Gets raw p4 lookup of revisions between two change nrs.
         /// </summary>
@@ -580,7 +631,7 @@ namespace Madscience.Perforce
         /// <param name="path"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public IEnumerable<string> GetRawChangesBetween(int startRevision, int endRevision, string path = "//...")
+        public IEnumerable<string> GetRawChangesBetween(string startRevision, string endRevision, string path = "//...")
         {
             string ticket = GetTicket(_p4User, _p4Password, _p4Port, _p4Fingerprint);
             IList<string> revisions = new List<string>();
@@ -610,8 +661,9 @@ namespace Madscience.Perforce
             return revisions;
         }
 
+
         /// <summary>
-        /// 
+        /// Parses out change without file details. 
         /// </summary>
         /// <param name="rawChanges"></param>
         /// <returns></returns>
@@ -642,6 +694,8 @@ namespace Madscience.Perforce
 
             return changes;
         }
+
+        #endregion
     }
 
     /// <summary>
@@ -684,7 +738,7 @@ namespace Madscience.Perforce
 
         public string File { get; set; }
 
-        public AnnotateChange Change { get; set; }
+        public AnnotateChange? Change { get; set; }
 
         public IList<AnnotateLine> Lines { get; set; }
 
