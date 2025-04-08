@@ -11,7 +11,11 @@ Manually download and place PerforceConnect.cs in your project, or fetch it prog
 ## How to use it
 
     # create an instance of connect  
-    Madscience.Perforce.PerforceConnect perforceConnect = new Madscience.Perforce.PerforceConnect("myuser", "mypassword", "ssl:p4.example.com:1666", "00:00:00:00:00:00:00:00:00:00:00:00:00:00");
+    Madscience.Perforce.PerforceConnect perforceConnect = new Madscience.Perforce.PerforceConnect(
+        "myuser", 
+        "mypassword", 
+        "ssl:p4.example.com:1666", 
+        "00:00:00:00:00:00:00:00:00:00:00:00:00:00");
 
     # get raw shelve data from p4, you can parse this yourself if you want
     IEnumerable<string> rawShelves = perforceConnect.GetRawChanges(true, 100, "//mydepot/...");
