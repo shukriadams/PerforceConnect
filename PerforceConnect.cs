@@ -822,6 +822,8 @@ namespace Madscience.Perforce
         /// </summary>
         public IEnumerable<string> Differences { get; set; }
 
+        public Annotate Annotate { get; set; }
+
         public ChangeFile()
         {
             File = string.Empty;
