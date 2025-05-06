@@ -1,6 +1,10 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 /// <summary>
 /// Single file, zero-dependency Perforce helper library. Drop into your project and do the Perforce things.
@@ -236,7 +240,7 @@ namespace Madscience.Perforce
         /// Returns true if "p4" works at the local command line. Requires that you install and configure p4 properly.
         /// </summary>
         /// <returns></returns>
-        public bool IsP4InstalledLocally()
+        public static bool IsP4InstalledLocally()
         {
             Console.Write("WBTB : Verifying p4 client available locally, you can safely ignore any authentication errors immediately following this line.");
             ShellResult result = Run($"p4 set");
@@ -318,7 +322,7 @@ namespace Madscience.Perforce
         /// </summary>
         /// <param name="rawClient"></param>
         /// <returns></returns>
-        public Client ParseClient(string rawClient)
+        public static Client ParseClient(string rawClient)
         {
             /*
             
@@ -399,7 +403,7 @@ namespace Madscience.Perforce
         /// <param name="rawDescribe"></param>
         /// <param name="parseDifferences"></param>
         /// <returns></returns>
-        public Change ParseDescribe(string rawDescribe, bool parseDifferences = true)
+        public static Change ParseDescribe(string rawDescribe, bool parseDifferences = true)
         {
             // convert all windows linebreaks to unix 
             rawDescribe = StandardizeLineEndings(rawDescribe);
@@ -514,7 +518,7 @@ namespace Madscience.Perforce
         /// </summary>
         /// <param name="raw"></param>
         /// <returns></returns>
-        private AnnotateChange? TryParseAnnotateType(string raw)
+        private static AnnotateChange? TryParseAnnotateType(string raw)
         {
             try
             {
@@ -532,7 +536,7 @@ namespace Madscience.Perforce
         /// </summary>
         /// <param name="lines"></param>
         /// <returns></returns>
-        public Annotate ParseAnnotate(IEnumerable<string> lines)
+        public static Annotate ParseAnnotate(IEnumerable<string> lines)
         {
             lines = lines.Where(line => !string.IsNullOrEmpty(line));
             string revision = string.Empty;
@@ -667,7 +671,7 @@ namespace Madscience.Perforce
         /// </summary>
         /// <param name="rawChanges"></param>
         /// <returns></returns>
-        public IEnumerable<Change> ParseChanges(IEnumerable<string> rawChanges)
+        public static IEnumerable<Change> ParseChanges(IEnumerable<string> rawChanges)
         {
             List<Change> changes = new List<Change>();
             Change currentChange = new Change();
