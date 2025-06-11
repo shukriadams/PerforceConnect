@@ -1,6 +1,6 @@
 # PerforceConnect
 
-Drop-in Perforce library for C#. There are no dependencies.
+Drop-in Perforce library for C# (Dotnet 6.0) There are no dependencies.
 
 ## How to get it
 
