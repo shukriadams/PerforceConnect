@@ -40,7 +40,7 @@ namespace Madscience.Perforce
         /// </summary>
         private readonly string _p4Fingerprint;
 
-        private static Dictionary<string, string> _tickets = new Dictionary<string, string>();
+        private Dictionary<string, string> _tickets = new Dictionary<string, string>();
 
         #endregion
 
@@ -62,7 +62,7 @@ namespace Madscience.Perforce
 
             // if ticket is already a proper ticket, store it in ticket collection, all subsequent ticket usage will bypass
             // auth and use this directly
-            if (ticketIsPassword)
+            if (!ticketIsPassword)
                 _tickets.Add(p4User+p4Port, ticket);
         }
 
@@ -213,7 +213,7 @@ namespace Madscience.Perforce
         /// <param name="username"></param>
         /// <param name="password"></param>
         /// <param name="host"></param>
-        private static string GetTicket(string username, string password, string host, string trustFingerPrint)
+        private string GetTicket(string username, string password, string host, string trustFingerPrint)
         {
             string key = username + host;
             if (_tickets.ContainsKey(key))
@@ -766,7 +766,7 @@ namespace Madscience.Perforce
         /// <param name="port"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static string TryResolveTrust(string ip, string port) 
+        public static string TryResolveTrust(string ip, int port) 
         {
             string command = $"p4 trust -l";
             ShellResult result = Run(command);
@@ -814,7 +814,6 @@ namespace Madscience.Perforce
                     {
                         ip = Find(result.StdOut.ElementAt(i + 1), "Address:(.*)", RegexOptions.IgnoreCase).Trim();
                     }
-
                 }
             }
 
@@ -833,7 +832,7 @@ namespace Madscience.Perforce
         /// <param name="port"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        public static string TryResolveTicket(string user, string host, int port) 
+        public static string TryResolveTicket(string user, string ip, int port) 
         {
             ShellResult result = Run($"p4 tickets");
             if (result.ExitCode != 0)
@@ -847,7 +846,7 @@ namespace Madscience.Perforce
                     string lookup_host = lookup.Groups[1].Value;
                     string lookup_port = lookup.Groups[2].Value;
                     string lookup_user = lookup.Groups[3].Value;
-                    if (lookup_host == host && lookup_port == port.ToString() && lookup_user == user)
+                    if (lookup_host == ip && lookup_port == port.ToString() && lookup_user == user)
                         return lookup.Groups[4].Value;
                 }
             }
