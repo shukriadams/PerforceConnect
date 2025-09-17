@@ -9,7 +9,7 @@ using System.Threading;
 /// <summary>
 /// Single file, zero-dependency Perforce helper library. Drop into your project and do the Perforce things.
 /// </summary>
-namespace Madscience.Perforce
+namespace Madscience_PerforceConnect
 {
     /// <summary>
     /// 
@@ -26,7 +26,7 @@ namespace Madscience.Perforce
         /// <summary>
         /// Plain-text password of user to connect to perforce with.
         /// </summary>
-        private readonly string _p4Password;
+        private readonly string _p4ticket;
         
         /// <summary>
         /// Address / URL of your perforce server. Normally looks like "ssl:p4.example.com:1666".
@@ -38,7 +38,7 @@ namespace Madscience.Perforce
         /// </summary>
         private readonly string _p4Fingerprint;
 
-        private static Dictionary<string, string> _tickets = new Dictionary<string, string>();
+        private Dictionary<string, string> _tickets = new Dictionary<string, string>();
 
         #endregion
 
@@ -48,15 +48,20 @@ namespace Madscience.Perforce
         /// 
         /// </summary>
         /// <param name="p4User"></param>
-        /// <param name="p4Password"></param>
+        /// <param name="ticket"></param>
         /// <param name="p4Port"></param>
         /// <param name="p4Fingerprint"></param>
-        public PerforceConnect(string p4User, string p4Password, string p4Port, string p4Fingerprint) 
+        public PerforceConnect(string p4User, string ticket, string p4Port, string p4Fingerprint, bool ticketIsPassword) 
         {
             _p4User = p4User;
-            _p4Password = p4Password;   
+            _p4ticket = ticket;   
             _p4Fingerprint = p4Fingerprint;
             _p4Port = p4Port;
+
+            // if ticket is already a proper ticket, store it in ticket collection, all subsequent ticket usage will bypass
+            // auth and use this directly
+            if (!ticketIsPassword)
+                _tickets.Add(p4User+p4Port, ticket);
         }
 
         #endregion
@@ -206,7 +211,7 @@ namespace Madscience.Perforce
         /// <param name="username"></param>
         /// <param name="password"></param>
         /// <param name="host"></param>
-        private static string GetTicket(string username, string password, string host, string trustFingerPrint)
+        private string GetTicket(string username, string password, string host, string trustFingerPrint)
         {
             string key = username + host;
             if (_tickets.ContainsKey(key))
@@ -262,7 +267,7 @@ namespace Madscience.Perforce
         /// <returns></returns>
         public string GetRawDescribe(string revision)
         {
-            string ticket = GetTicket(_p4User, _p4Password, _p4Port, _p4Fingerprint);
+            string ticket = GetTicket(_p4User, _p4ticket, _p4Port, _p4Fingerprint);
             string command = $"p4 -u {_p4User} -p {_p4Port} -P {ticket} describe -s {revision}";
 
             ShellResult result = Run(command);
@@ -296,7 +301,7 @@ namespace Madscience.Perforce
         /// <exception cref="Exception"></exception>
         public string GetRawClient(string clientname)
         {
-            string ticket = GetTicket(_p4User, _p4Password, _p4Port, _p4Fingerprint);
+            string ticket = GetTicket(_p4User, _p4ticket, _p4Port, _p4Fingerprint);
             string command = $"p4 -u {_p4User} -p {_p4Port} -P {ticket} client -o {clientname}";
 
             ShellResult result = Run(command);
@@ -384,6 +389,59 @@ namespace Madscience.Perforce
             };
         }
 
+        /// <summary>
+        /// Returns a list of client names a given user has on a given host.
+        /// </summary>
+        /// <param name="user"></param>
+        /// <param name="host"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public IEnumerable<string> GetClientsForUserAndHost(string user, string host) 
+        {
+            string ticket = GetTicket(_p4User, _p4ticket, _p4Port, _p4Fingerprint);
+            string command = $"p4 -u {_p4User} -p {_p4Port} -P {ticket} clients -u {user}";
+
+            ShellResult result = Run(command);
+
+            if (result.ExitCode != 0 || result.StdErr.Any())
+            {
+                string stderr = string.Join("\r\n", result.StdErr);
+
+                if (stderr.Contains("'p4 trust' command"))
+                    Console.WriteLine("Note that you can force p4 trust by adding Trust: true to your source server's Config: block");
+
+                throw new Exception($"P4 command {command} exited with code {result.ExitCode}, error : {stderr}");
+            }
+
+            List<string> clients = new List<string>();
+
+            foreach (string line in result.StdOut) 
+            {
+                Console.WriteLine($"::{line}");
+                string clientName = Find(line, @"^Client (.*) \d", RegexOptions.IgnoreCase);
+                if (string.IsNullOrEmpty(clientName))
+                    continue;
+
+                string subCommand = $"p4 -u {_p4User} -p {_p4Port} -P {ticket} client -o {clientName}";
+                ShellResult subResult = Run(subCommand);
+
+                if (result.ExitCode != 0 || result.StdErr.Any())
+                {
+                    string stderr = string.Join("\r\n", subResult.StdErr);
+                    throw new Exception($"P4 command {subCommand} exited with code {result.ExitCode}, error : {stderr}");
+                }
+        
+                foreach(string line2 in subResult.StdOut)
+                    if (Find(line2, $"Host:\\W+(.*)", RegexOptions.IgnoreCase) == host) 
+                    {
+                        clients.Add(clientName);
+                        break;
+                    }
+            }
+
+            return clients;
+        }
+
 
         /// <summary>
         /// 
@@ -393,7 +451,7 @@ namespace Madscience.Perforce
         /// <param name="host"></param>
         public void VerifyCredentials()
         {
-            GetTicket(_p4User, _p4Password, _p4Port, _p4Fingerprint);
+            GetTicket(_p4User, _p4ticket, _p4Port, _p4Fingerprint);
         }
 
 
@@ -498,7 +556,7 @@ namespace Madscience.Perforce
         /// <returns></returns>
         public IEnumerable<string> GetRawAnnotate(string filePath, string revision = null)
         {
-            string ticket = GetTicket(_p4User, _p4Password, _p4Port, _p4Fingerprint);
+            string ticket = GetTicket(_p4User, _p4ticket, _p4Port, _p4Fingerprint);
 
             string revisionSwitch = string.Empty;
             if (!string.IsNullOrEmpty(revision))
@@ -590,7 +648,7 @@ namespace Madscience.Perforce
         /// <returns></returns>
         public IEnumerable<string> GetRawChanges(bool shelves, int max = 0, string path = "//...")
         {
-            string ticket = GetTicket(_p4User, _p4Password, _p4Port, _p4Fingerprint);
+            string ticket = GetTicket(_p4User, _p4ticket, _p4Port, _p4Fingerprint);
             string shelfModifier = shelves ? "-s shelved" : string.Empty;
             string maxModifier = max > 0 ? $"-m {max}" : string.Empty;
             string command = $"p4 -u {_p4User} -p {_p4Port} -P {ticket} changes {maxModifier} {shelfModifier} -l {path}";
@@ -611,7 +669,7 @@ namespace Madscience.Perforce
         /// <exception cref="Exception"></exception>
         public IEnumerable<string> GetRawChange(string changeNumber)
         {
-            string ticket = GetTicket(_p4User, _p4Password, _p4Port, _p4Fingerprint);
+            string ticket = GetTicket(_p4User, _p4ticket, _p4Port, _p4Fingerprint);
 
             string command = $"p4 -u {_p4User} -p {_p4Port} -P {ticket} change -o {changeNumber}";
 
@@ -637,7 +695,7 @@ namespace Madscience.Perforce
         /// <exception cref="Exception"></exception>
         public IEnumerable<string> GetRawChangesBetween(string startRevision, string endRevision, string path = "//...")
         {
-            string ticket = GetTicket(_p4User, _p4Password, _p4Port, _p4Fingerprint);
+            string ticket = GetTicket(_p4User, _p4ticket, _p4Port, _p4Fingerprint);
             IList<string> revisions = new List<string>();
 
             string command = $"p4 -u {_p4User} -p {_p4Port} -P {ticket} changes {path}@{startRevision},@{endRevision} ";
@@ -699,7 +757,113 @@ namespace Madscience.Perforce
             return changes;
         }
 
+        /// <summary>
+        /// Tries to find a trust string associated with a given ip + port. Returns null if none found.
+        /// </summary>
+        /// <param name="ip"></param>
+        /// <param name="port"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static string TryResolveTrust(string ip, int port) 
+        {
+            string command = $"p4 trust -l";
+            ShellResult result = Run(command);
+            if (result.ExitCode != 0 || (result.StdErr.Any()))
+                throw new Exception($"P4 command {command} exited with code {result.ExitCode} : {string.Join("\n", result.StdErr)}");
+
+            foreach (string line in result.StdOut) 
+            {
+                if (line.StartsWith($"{ip}:{port}"))
+                    return Find(line, ".* (.*)");
+            }
+
+            return null;
+        }
+
+
+        /// <summary>
+        /// Tries to resolve an IP from standard p4port setting (ssl:address:port). Returns tokenized result.
+        /// Note that P4port may already be in IP format.
+        /// </summary>
+        /// <param name="p4Port"></param>
+        /// <returns></returns>
+        public static P4PortResolveResult ResolveP4PortToIP(string p4Port) 
+        {
+            Match match = new Regex("(?:ssl.)?(.+):(\\d+)", RegexOptions.IgnoreCase).Match(p4Port);
+            if (match.Length == 0)
+                return new P4PortResolveResult {  Error = $"p4port string {p4Port} appears to be invalid." };
+
+            string host = match.Groups[1].Value;
+            string ip = null;
+            int port = int.Parse(match. Groups[2].Value);
+            bool hostIsIP = new Regex("^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$", RegexOptions.IgnoreCase).Match(host).Length > 0;
+
+            // if not ip, resolve hostname to ip
+            if (!hostIsIP) 
+            {
+                ShellResult result = Run($"nslookup {host}");
+                if (result.ExitCode != 0)
+                    throw new Exception($"nslookup on host {host} exited with code {result.ExitCode} : {string.Join("\n", result.StdErr)}");
+
+                for (int i = 0; i < result.StdOut.Count(); i++) 
+                {
+                    string line = result.StdOut.ElementAt(i);
+                    if (Find(line, $"Name:(.*)", RegexOptions.IgnoreCase).Trim().ToLower() == host.ToLower() && i < result.StdOut.Count() -1) 
+                    {
+                        ip = Find(result.StdOut.ElementAt(i + 1), "Address:(.*)", RegexOptions.IgnoreCase).Trim();
+                    }
+                }
+            }
+
+            return new P4PortResolveResult { 
+                Host = host, 
+                IP = ip,
+                Port = port 
+            };
+        }
+
+        /// <summary>
+        /// Tries to resolve a p4 ticket from current p4 context, for the given user+host+port combination. Returns null if none found.
+        /// </summary>
+        /// <param name="user"></param>
+        /// <param name="host"></param>
+        /// <param name="port"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public static string TryResolveTicket(string user, string ip, int port) 
+        {
+            ShellResult result = Run($"p4 tickets");
+            if (result.ExitCode != 0)
+                throw new Exception($"p4 ticket exited with code {result.ExitCode}, {string.Join("\n", result.StdErr)}");
+
+            foreach (string ticketLine in result.StdOut) 
+            {
+                Match lookup = new Regex("(.*):(\\d+) \\((.*)\\) (.*)").Match(ticketLine);
+                if (lookup.Groups.Count >= 4) 
+                {
+                    string lookup_host = lookup.Groups[1].Value;
+                    string lookup_port = lookup.Groups[2].Value;
+                    string lookup_user = lookup.Groups[3].Value;
+                    if (lookup_host == ip && lookup_port == port.ToString() && lookup_user == user)
+                        return lookup.Groups[4].Value;
+                }
+            }
+
+            return null;
+        }
+
         #endregion
+    }
+
+    public class P4PortResolveResult 
+    {
+        public string Host { get; set; } = string.Empty;
+
+        public int Port { get; set; }
+
+        public string IP { get; set; }
+
+        public string Error { get; set; }
     }
 
     /// <summary>
