@@ -11,7 +11,7 @@ using System.Threading;
 /// <summary>
 /// Single file, zero-dependency Perforce helper library. Drop into your project and do the Perforce things.
 /// </summary>
-namespace Madscience.Perforce
+namespace Madscience_PerforceConnect
 {
     /// <summary>
     /// 
