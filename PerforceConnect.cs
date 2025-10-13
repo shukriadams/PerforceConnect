@@ -262,6 +262,40 @@ namespace Madscience_PerforceConnect
 
 
         /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="revision"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        public string GetShelveDigest(string revision) 
+        {
+            string ticket = GetTicket();
+            string command = $"p4 -u {_p4User} -p {_p4Port} -P {ticket} fstat -Ol -T \"clientFile, digest\" -Rs -e {revision} //...";
+
+            ShellResult result = Run(command);
+
+            if (result.ExitCode != 0 || result.StdErr.Any())
+            {
+                string stderr = string.Join("\r\n", result.StdErr);
+                if (stderr.Contains("no such changelist"))
+                    return null;
+
+                // ignore text encoding issues
+                // todo : find a better way to fix this
+                if (stderr.Contains("No Translation for parameter 'data'"))
+                    throw new Exception("Invalid revision encoding"); // do not change exception message, we're hardcoded referring to further up
+
+                if (stderr.Contains("'p4 trust' command"))
+                    Console.WriteLine("Note that you can force p4 trust by adding Trust: true to your source server's Config: block");
+
+                throw new Exception($"P4 command {command} exited with code {result.ExitCode}, revision {revision}, error : {stderr}");
+            }
+
+            return Find(string.Join("\n", result.StdOut), "... digest (.*)");
+        }
+
+
+        /// <summary>
         /// Gets detailed contents of a change using the P4 describe command. Returns null if revision does not exist.
         /// </summary>
         /// <param name="username"></param>
