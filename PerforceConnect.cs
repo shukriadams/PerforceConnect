@@ -247,7 +247,7 @@ namespace Madscience_PerforceConnect
         /// Returns true if "p4" works at the local command line. Requires that you install and configure p4 properly.
         /// </summary>
         /// <returns></returns>
-        public static bool IsP4InstalledLocally()
+        public bool IsP4InstalledLocally()
         {
             Console.Write("WBTB : Verifying p4 client available locally, you can safely ignore any authentication errors immediately following this line.");
             ShellResult result = Run($"p4 set");
@@ -329,7 +329,7 @@ namespace Madscience_PerforceConnect
         /// </summary>
         /// <param name="rawClient"></param>
         /// <returns></returns>
-        public static Client ParseClient(string rawClient)
+        public Client ParseClient(string rawClient)
         {
             /*
             
@@ -463,7 +463,7 @@ namespace Madscience_PerforceConnect
         /// <param name="rawDescribe"></param>
         /// <param name="parseDifferences"></param>
         /// <returns></returns>
-        public static Change ParseDescribe(string rawDescribe, bool parseDifferences = true)
+        public Change ParseDescribe(string rawDescribe, bool parseDifferences = true)
         {
             // convert all windows linebreaks to unix 
             rawDescribe = StandardizeLineEndings(rawDescribe);
@@ -578,7 +578,7 @@ namespace Madscience_PerforceConnect
         /// </summary>
         /// <param name="raw"></param>
         /// <returns></returns>
-        private static AnnotateChange? TryParseAnnotateType(string raw)
+        private AnnotateChange? TryParseAnnotateType(string raw)
         {
             try
             {
@@ -596,7 +596,7 @@ namespace Madscience_PerforceConnect
         /// </summary>
         /// <param name="lines"></param>
         /// <returns></returns>
-        public static Annotate ParseAnnotate(IEnumerable<string> lines)
+        public Annotate ParseAnnotate(IEnumerable<string> lines)
         {
             lines = lines.Where(line => !string.IsNullOrEmpty(line));
             string revision = string.Empty;
@@ -731,7 +731,7 @@ namespace Madscience_PerforceConnect
         /// </summary>
         /// <param name="rawChanges"></param>
         /// <returns></returns>
-        public static IEnumerable<Change> ParseChanges(IEnumerable<string> rawChanges)
+        public IEnumerable<Change> ParseChanges(IEnumerable<string> rawChanges)
         {
             List<Change> changes = new List<Change>();
             Change currentChange = new Change();
