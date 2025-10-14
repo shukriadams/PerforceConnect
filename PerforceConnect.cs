@@ -368,6 +368,7 @@ namespace Madscience_PerforceConnect
         public Client ParseClient(string rawClient)
         {
             /*
+
             Expected rawClient is :
 
                 Client: myclient
@@ -568,6 +569,9 @@ namespace Madscience_PerforceConnect
             string rawDate = Find(rawDescribe, @"change [\d]+ by.+? on (.*?)\n", RegexOptions.IgnoreCase);
             rawDate = rawDate.Replace("*pending*", string.Empty);
 
+            string descriptionFlattened = string.Join(" ", description).Trim();
+            bool isShelve = descriptionFlattened.EndsWith("*pending*");
+
             return new Change
             {
                 Revision = revision,
@@ -576,7 +580,8 @@ namespace Madscience_PerforceConnect
                 Date = DateTime.Parse(rawDate),
                 User = Find(rawDescribe, @"change [\d]+ by (.*?)@", RegexOptions.IgnoreCase),
                 Files = files,
-                Description = string.Join(" ", description)
+                IsShelve = isShelve,
+                Description = descriptionFlattened
             };
         }
 
@@ -990,7 +995,7 @@ namespace Madscience_PerforceConnect
         public string Description { get; set; }
         public int ChangeFilesCount { get; set; }
         public IEnumerable<ChangeFile> Files { get; set; }
-
+        public bool IsShelve { get; set; }
         public Change()
         {
             Workspace = string.Empty;
