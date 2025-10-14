@@ -687,12 +687,13 @@ namespace Madscience_PerforceConnect
         /// <param name="max"></param>
         /// <param name="path"></param>
         /// <returns></returns>
-        public IEnumerable<string> GetRawChanges(bool shelves, int max = 0, string path = "//...")
+        public IEnumerable<string> GetRawChanges(ChangesQuery args)
         {
             string ticket = GetTicket();
-            string shelfModifier = shelves ? "-s shelved" : string.Empty;
-            string maxModifier = max > 0 ? $"-m {max}" : string.Empty;
-            string command = $"p4 -u {_p4User} -p {_p4Port} -P {ticket} changes {maxModifier} {shelfModifier} -l {path}";
+            string shelfModifier = args.ShelvesOnly ? "-s shelved" : string.Empty;
+            string maxModifier = args.Max > 0 ? $"-m {args.Max}" : string.Empty;
+            string userModifier = string.IsNullOrEmpty(args.User) ? string.Empty : $" -u {args.User} ";
+            string command = $"p4 -u {_p4User} -p {_p4Port} -P {ticket} changes {maxModifier} {shelfModifier} {userModifier} -l {args.Path}";
 
             ShellResult result = Run(command);
             if (result.ExitCode != 0)
@@ -701,7 +702,7 @@ namespace Madscience_PerforceConnect
             return result.StdOut;
         }
 
-
+        
         /// <summary>
         /// 
         /// </summary>
@@ -1042,6 +1043,26 @@ namespace Madscience_PerforceConnect
         }
     }
 
+    public class ChangesQuery
+    {
+        /// <summary>
+        /// Maximum number of changes to limit to. If zero, no limit is set
+        /// </summary>
+        public int Max { get; set; }
+
+        /// <summary>
+        /// If set, limits changes to those made by this user.
+        /// </summary>
+        public string User { get; set; }
+
+        // If true, only shelves returned
+        public bool ShelvesOnly { get; set; }
+
+        /// <summary>
+        /// Depot path in Perforce to limit query to. Defaults to top level of server.
+        /// </summary>
+        public string Path { get; set; } = "//...";
+    }
 
     /// <summary>
     /// Result of shell command.
