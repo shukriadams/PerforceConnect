@@ -21,5 +21,5 @@ Manually download and place PerforceConnect.cs in your project, or fetch it prog
     IEnumerable<string> rawShelves = perforceConnect.GetRawChanges(true, 100, "//mydepot/...");
 
     # or, you can use PerforceConnect to parse the raw output into Change objects
-    IEnumerable<Madscience.Perforce.Change> shelves = Madscience.Perforce.PerforceConnect.ParseChanges(rawShelves);
+    IEnumerable<Madscience.Perforce.Change> shelves = perforceConnect.ParseChanges(rawShelves);
 
