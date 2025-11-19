@@ -498,7 +498,7 @@ namespace Madscience_PerforceConnect
         /// <param name="rawDescribe"></param>
         /// <param name="parseDifferences"></param>
         /// <returns></returns>
-        public Change ParseDescribe(string rawDescribe, bool parseDifferences = true)
+        public Change ParseDescribe(string rawDescribe, ChangeStatus status, bool parseDifferences = true)
         {
             // convert all windows linebreaks to unix 
             rawDescribe = StandardizeLineEndings(rawDescribe);
@@ -570,7 +570,6 @@ namespace Madscience_PerforceConnect
             rawDate = rawDate.Replace("*pending*", string.Empty);
 
             string descriptionFlattened = string.Join(" ", description).Trim();
-            bool isShelve = descriptionFlattened.EndsWith("*pending*");
 
             return new Change
             {
@@ -580,7 +579,7 @@ namespace Madscience_PerforceConnect
                 Date = DateTime.Parse(rawDate),
                 User = Find(rawDescribe, @"change [\d]+ by (.*?)@", RegexOptions.IgnoreCase),
                 Files = files,
-                IsShelve = isShelve,
+                Status = status,
                 Description = descriptionFlattened
             };
         }
@@ -690,7 +689,7 @@ namespace Madscience_PerforceConnect
         public IEnumerable<string> GetRawChanges(ChangesQuery args)
         {
             string ticket = GetTicket();
-            string shelfModifier = args.ShelvesOnly ? "-s shelved" : string.Empty;
+            string shelfModifier = $"-s {args.Status.ToString().ToLower()}";
             string maxModifier = args.Max > 0 ? $"-m {args.Max}" : string.Empty;
             string userModifier = string.IsNullOrEmpty(args.User) ? string.Empty : $" -u {args.User} ";
             string command = $"p4 -u {_p4User} -p {_p4Port} -P {ticket} changes {maxModifier} {shelfModifier} {userModifier} -l {args.Path}";
@@ -771,7 +770,7 @@ namespace Madscience_PerforceConnect
         /// </summary>
         /// <param name="rawChanges"></param>
         /// <returns></returns>
-        public IEnumerable<Change> ParseChanges(IEnumerable<string> rawChanges)
+        public IEnumerable<Change> ParseChanges(IEnumerable<string> rawChanges, ChangeStatus status)
         {
             List<Change> changes = new List<Change>();
             Change currentChange = new Change();
@@ -787,6 +786,7 @@ namespace Madscience_PerforceConnect
                     currentChange.User = Find(changeLine, @"change [\d]+ on .+ by (.*)@", RegexOptions.IgnoreCase);
                     currentChange.Workspace = Find(changeLine, @"change [\d]+ on .+ by .+@(.*)", RegexOptions.IgnoreCase);
                     currentChange.Date = DateTime.Parse(Find(changeLine, @"change [\d]+ on (.*?) by ", RegexOptions.IgnoreCase));
+                    currentChange.Status = status;
                 }
                 else
                 {
@@ -996,7 +996,7 @@ namespace Madscience_PerforceConnect
         public string Description { get; set; }
         public int ChangeFilesCount { get; set; }
         public IEnumerable<ChangeFile> Files { get; set; }
-        public bool IsShelve { get; set; }
+        public ChangeStatus? Status { get; set; }
         public Change()
         {
             Workspace = string.Empty;
@@ -1042,6 +1042,13 @@ namespace Madscience_PerforceConnect
             Differences = new string[] { };
         }
     }
+    
+    public enum ChangeStatus 
+    { 
+        Submitted,
+        Pending,
+        Shelved
+    }
 
     public class ChangesQuery
     {
@@ -1054,9 +1061,8 @@ namespace Madscience_PerforceConnect
         /// If set, limits changes to those made by this user.
         /// </summary>
         public string User { get; set; }
-
-        // If true, only shelves returned
-        public bool ShelvesOnly { get; set; }
+    
+        public ChangeStatus Status { get; set; } = ChangeStatus.Submitted;
 
         /// <summary>
         /// Depot path in Perforce to limit query to. Defaults to top level of server.
