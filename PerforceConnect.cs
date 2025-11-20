@@ -498,7 +498,7 @@ namespace Madscience_PerforceConnect
         /// <param name="rawDescribe"></param>
         /// <param name="parseDifferences"></param>
         /// <returns></returns>
-        public Change ParseDescribe(string rawDescribe, ChangeStatus status, bool parseDifferences = true)
+        public Change ParseDescribe(string rawDescribe, bool parseDifferences = true)
         {
             // convert all windows linebreaks to unix 
             rawDescribe = StandardizeLineEndings(rawDescribe);
@@ -570,7 +570,7 @@ namespace Madscience_PerforceConnect
             rawDate = rawDate.Replace("*pending*", string.Empty);
 
             string descriptionFlattened = string.Join(" ", description).Trim();
-
+            bool isPending = descriptionFlattened.EndsWith("*pending*");
             return new Change
             {
                 Revision = revision,
@@ -579,7 +579,7 @@ namespace Madscience_PerforceConnect
                 Date = DateTime.Parse(rawDate),
                 User = Find(rawDescribe, @"change [\d]+ by (.*?)@", RegexOptions.IgnoreCase),
                 Files = files,
-                Status = status,
+                IsPending = isPending,
                 Description = descriptionFlattened
             };
         }
@@ -770,7 +770,7 @@ namespace Madscience_PerforceConnect
         /// </summary>
         /// <param name="rawChanges"></param>
         /// <returns></returns>
-        public IEnumerable<Change> ParseChanges(IEnumerable<string> rawChanges, ChangeStatus status)
+        public IEnumerable<Change> ParseChanges(IEnumerable<string> rawChanges)
         {
             List<Change> changes = new List<Change>();
             Change currentChange = new Change();
@@ -786,7 +786,7 @@ namespace Madscience_PerforceConnect
                     currentChange.User = Find(changeLine, @"change [\d]+ on .+ by (.*)@", RegexOptions.IgnoreCase);
                     currentChange.Workspace = Find(changeLine, @"change [\d]+ on .+ by .+@(.*)", RegexOptions.IgnoreCase);
                     currentChange.Date = DateTime.Parse(Find(changeLine, @"change [\d]+ on (.*?) by ", RegexOptions.IgnoreCase));
-                    currentChange.Status = status;
+                    currentChange.IsPending = changeLine.EndsWith("*pending*");
                 }
                 else
                 {
@@ -996,7 +996,7 @@ namespace Madscience_PerforceConnect
         public string Description { get; set; }
         public int ChangeFilesCount { get; set; }
         public IEnumerable<ChangeFile> Files { get; set; }
-        public ChangeStatus? Status { get; set; }
+        public bool IsPending { get; set; }
         public Change()
         {
             Workspace = string.Empty;
