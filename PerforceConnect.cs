@@ -510,7 +510,7 @@ namespace Madscience_PerforceConnect
                 throw new Exception($"P4 describe failed, got invalid content \"{rawDescribe}\".");
 
             // s modifier selects across multiple lines
-            string descriptionRaw = Find(rawDescribe, @"\n\n(.*?)\n\nAffected files ...", RegexOptions.IgnoreCase & RegexOptions.Multiline).Trim();
+            string descriptionRaw = Find(rawDescribe, @"([\S\s]*?)\nAffected files ...", RegexOptions.IgnoreCase & RegexOptions.Multiline).Trim();
             IList<ChangeFile> files = new List<ChangeFile>();
 
             // affected files is large block listing all files which have been affected by revision
