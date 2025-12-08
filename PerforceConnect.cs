@@ -564,13 +564,23 @@ namespace Madscience_PerforceConnect
             IEnumerable<string> description = descriptionRaw.Split("\n", StringSplitOptions.RemoveEmptyEntries);
             description = description.Select(line => line.Trim());
 
+            // description should never be empty, which obviously means it will, we'd rather eat a soft error
+            if (!description.Any())
+                throw new Exception("Description parse failed, no content found");
+
             // parse out and strip optional *pending* string from date sequence. Could probably be done entirely 
-            // in regex but that would require effort.
+            // in regex but that would require effort and that's in short supply about now
             string rawDate = Find(rawDescribe, @"change [\d]+ by.+? on (.*?)\n", RegexOptions.IgnoreCase);
             rawDate = rawDate.Replace("*pending*", string.Empty);
 
-            string descriptionFlattened = string.Join(" ", description).Trim();
-            bool isPending = descriptionFlattened.EndsWith("*pending*");
+            // the actual displayed description is everything minus the first line, which is always taken up by 
+            // metadata
+            string descriptionFlattened = string.Join(" ", description.Skip(1)).Trim();
+            
+            // the (first) meta data line ending with *pending* seems to be how P4 flags a change as shelved, but
+            // this is also just pending.
+            bool isPending = description.First().EndsWith("*pending*");
+            
             return new Change
             {
                 Revision = revision,
